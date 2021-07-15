@@ -22,12 +22,6 @@ def create_request_message(mac_address):
     return dhcppython.packet.DHCPPacket.Request(mac_address)
 
 
-message = b"give me IP!!!"
-# while True:
-#     client.sendto(message, ('<broadcast>', 30067))
-#     data, addr = client.recvfrom(1024)
-#     print("received message: %s"%data)
-
 
 if __name__ == "__main__":
     client_socket = create_udp_socket()

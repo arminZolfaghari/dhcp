@@ -4,6 +4,8 @@ import json
 import time
 
 
+MACADDRESS_IP_DICT = {}
+IP_POOL = []
 
 
 # read config.json
@@ -26,7 +28,6 @@ def create_ip_pool_range(from_ip, to_ip):
     return ip_pool_arr
 
 
-
 # convert subnet to ip
 subnet_to_ip_convertor = {
     "252": {"start": "1", "end": "2"},
@@ -37,6 +38,7 @@ subnet_to_ip_convertor = {
     "124": {"start": "1", "end": "126"},
     "0": {"start": "1", "end": "254"},
 }
+
 
 # create ip pool when pool_mode is 'range'
 def create_ip_pool_subnet(ip_block, subnet_mask):
@@ -49,7 +51,6 @@ def create_ip_pool_subnet(ip_block, subnet_mask):
         ip_pool_arr.append(ip)
 
     return ip_pool_arr
-
 
 
 def extract_server_config():
@@ -69,6 +70,9 @@ def extract_server_config():
     black_list = config["black_list"]
     # TODO: check reservation_list and black_list in ip pool
 
+    return ip_pool_arr, lease_time, reservation_list, black_list
+
+
 # create UDP socket for DHCP server
 def create_udp_socket():
     server = socket.socket(socket.AF_INET, socket.SOCK_DGRAM, socket.IPPROTO_UDP)  # UDP
@@ -81,12 +85,13 @@ def create_offer_message(mac_address):
     return
 
 
-
-
-
 def handle_client(data, client_address):
     dhcp_packet = dhcppython.packet.DHCPPacket.from_bytes(data)
+    dhcp_message_type = dhcp_packet.options.as_dict()["dhcp_message_type"]
+    if dhcp_message_type == "DHCPDISCOVER":
+        print("DHCP Server get discover message from client")
 
+    print()
 
 
 
@@ -96,9 +101,9 @@ def wait_for_clients(server):
         try:  # receive request from client
             data_from_client, client_address = server.recvfrom(1024)
             print("connection is {} and address is {}".format(data_from_client, client_address))
-            dhcp_packet = dhcppython.packet.DHCPPacket.from_bytes(data_from_client)
-            print(dhcp_packet)
-            thread = threading.Thread(target=handle_client, args=(data_from_client, address))
+            # dhcp_packet = dhcppython.packet.DHCPPacket.from_bytes(data_from_client)
+            # # print(dhcp_packet)
+            thread = threading.Thread(target=handle_client, args=(data_from_client, client_address))
             thread.start()
 
         except OSError as err:
@@ -127,10 +132,9 @@ def start_DHCP_server(server):
 
 if __name__ == "__main__":
     DHCP_server = create_udp_socket()
-    DHCP_server.bind(('192.168.1.3', 30067))  # 30067 for DHCP server port
+    DHCP_server.bind(('192.168.1.33', 30067))  # 30067 for DHCP server port
     # DHCP_server.settimeout(0.2)
 
     print(DHCP_server)
-
     print("*** DHCP server is starting ***")
     start_DHCP_server(DHCP_server)
