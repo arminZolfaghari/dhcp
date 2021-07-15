@@ -5,6 +5,7 @@ import time
 
 
 
+
 # read config.json
 def read_from_config_file():
     file = open('config.json')
@@ -17,21 +18,56 @@ def create_ip_pool_range(from_ip, to_ip):
     ip_pool_arr = []
     from_ip_parts = from_ip.split('.')
     to_ip_parts = to_ip.split('.')
-    for i in range(int(from_ip_parts[3]), int(to_ip_parts[3] + 1)):
-        ip = from_ip_parts[0] + from_ip_parts[1] + from_ip_parts[2] + str(i)
+    print(from_ip_parts)
+    for i in range(int(from_ip_parts[3]), int(to_ip_parts[3]) + 1):
+        ip = from_ip_parts[0] + "." + from_ip_parts[1] + "." + from_ip_parts[2] + "." + str(i)
         ip_pool_arr.append(ip)
 
     return ip_pool_arr
 
 
-def create_ip_pool(config):
+
+# convert subnet to ip
+subnet_to_ip_convertor = {
+    "252": {"start": "1", "end": "2"},
+    "248": {"start": "1", "end": "6"},
+    "240": {"start": "1", "end": "14"},
+    "224": {"start": "1", "end": "30"},
+    "192": {"start": "1", "end": "62"},
+    "124": {"start": "1", "end": "126"},
+    "0": {"start": "1", "end": "254"},
+}
+
+# create ip pool when pool_mode is 'range'
+def create_ip_pool_subnet(ip_block, subnet_mask):
+    ip_pool_arr = []
+    subnet_mask_parts = subnet_mask.split('.')
+    ip_block_parts = ip_block.split('.')
+    start_end_host_id = subnet_to_ip_convertor[subnet_mask_parts[3]]
+    for i in range(int(start_end_host_id["start"]), int(start_end_host_id["end"]) + 1):
+        ip = ip_block_parts[0] + "." + ip_block_parts[1] + "." + ip_block_parts[2] + "." + str(i)
+        ip_pool_arr.append(ip)
+
+    return ip_pool_arr
+
+
+
+def extract_server_config():
+    config = read_from_config_file()
     pool_mode = config["pool_mode"]
     if pool_mode == "range":
         from_ip = config["range"]["from"]
         to_ip = config["range"]["to"]
         ip_pool_arr = create_ip_pool_range(from_ip, to_ip)
+    elif pool_mode == "subnet":
+        ip_block = config["subnet"]["ip_block"]
+        subnet_mask = config["subnet"]["subnet_mask"]
+        ip_pool_arr = create_ip_pool_subnet(ip_block, subnet_mask)
 
-    elif pool_mode == "subnet"
+    lease_time = config["lease_time"]
+    reservation_list = config["reservation_list"]
+    black_list = config["black_list"]
+    # TODO: check reservation_list and black_list in ip pool
 
 # create UDP socket for DHCP server
 def create_udp_socket():
