@@ -1,16 +1,31 @@
-# This is a sample Python script.
-
-# Press Shift+F10 to execute it or replace it with your code.
-# Press Double Shift to search everywhere for classes, files, tool windows, actions, and settings.
+import socket
+import dhcppython
 
 
-def print_hi(name):
-    # Use a breakpoint in the code line below to debug your script.
-    print(f'Hi, {name}')  # Press Ctrl+F8 to toggle the breakpoint.
+# create UDP socket for client
+def create_udp_socket():
+    client = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)  # UDP
+    client.setsockopt(socket.SOL_SOCKET, socket.SO_BROADCAST, 1)
+    return client
 
 
-# Press the green button in the gutter to run the script.
-if __name__ == '__main__':
-    print_hi('PyCharm')
+# create discovery message with mac_address by dhcppython library
+def create_discovery_message(mac_address):
+    return dhcppython.packet.DHCPPacket.Discover(mac_address)
 
-# See PyCharm help at https://www.jetbrains.com/help/pycharm/
+
+message = b"give me IP!!!"
+# while True:
+#     client.sendto(message, ('<broadcast>', 30067))
+#     data, addr = client.recvfrom(1024)
+#     print("received message: %s"%data)
+
+
+if __name__ == "__main__":
+    client_socket = create_udp_socket()
+    client_socket.bind(("", 30068))  # 30068 for client port
+
+    took_ip_from_dhcp = False
+    while not took_ip_from_dhcp:
+        di
+
