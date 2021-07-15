@@ -31,7 +31,7 @@ message = b"give me IP!!!"
 
 if __name__ == "__main__":
     client_socket = create_udp_socket()
-    client_socket.bind(("", 30068))  # 30068 for client port
+    client_socket.bind(('', 30068))  # 30068 for client port
 
     took_ip_from_dhcp = False
     while not took_ip_from_dhcp:
