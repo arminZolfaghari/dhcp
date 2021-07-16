@@ -13,6 +13,6 @@
     "mac1": "192.168.1.9"
   },
   "black_list": [
-    "DE:AD:BE:EF:C0:DE"
+    "DE:AD:BE:EF:C0:D0"
     ]
 }

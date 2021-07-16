@@ -143,12 +143,24 @@ def check_client_ip_request(client_mac_address, requested_ip):
 
 
 def is_client_in_black_list(client_mac_address):
-    print(client_mac_address)
-    print(BLACK_LIST_MACADDRESS)
     if client_mac_address in BLACK_LIST_MACADDRESS:
         return True
 
     return False
+
+
+def return_ip_to_pool(client_mac_address):
+    returned_ip = MACADDRESS_IP_DICT[client_mac_address]
+    del MACADDRESS_IP_DICT[client_mac_address]
+    IP_POOL.append(returned_ip)
+    print("return this ip: {} from this client: {} to ip pool".format(returned_ip, client_mac_address))
+    print("NEW IP POOL : ", IP_POOL)
+
+
+# after lease time, returns ip to ip_pool
+def timer_for_lease_time(client_mac_address):
+    timer_countdown = threading.Timer(LEASE_TIME, return_ip_to_pool, args=[client_mac_address], kwargs=None)
+    timer_countdown.start()
 
 
 def handle_client(server, data, client_address, socket_lock):
@@ -162,11 +174,11 @@ def handle_client(server, data, client_address, socket_lock):
     dhcp_message_xid = dhcp_packet.xid
     if dhcp_message_type == "DHCPDISCOVER":
         print("DHCP Server get discover message from client")
-        # print("ip pool len", len(IP_POOL))
         offer_msg = create_offer_message(MAC_ADDRESS, dhcp_message_xid)
         server.sendto(offer_msg.asbytes, ('<broadcast>', 6668))
 
     elif dhcp_message_type == "DHCPREQUEST":
+        client_mac_address = dhcp_packet.chaddr
         requested_ip = dhcp_packet.yiaddr
         print("DHCP Server get request message from client.(requested ip : {})".format(requested_ip))
         allocate_ip_flag = check_client_ip_request(dhcp_packet.chaddr, requested_ip)
@@ -174,6 +186,8 @@ def handle_client(server, data, client_address, socket_lock):
             ack_msg = create_ack_message(MAC_ADDRESS, dhcp_message_xid, requested_ip)
             print("DHCP Server send ACK to client.(ip {})".format(requested_ip))
             server.sendto(ack_msg.asbytes, ('<broadcast>', 6668))
+            timer_for_lease_time(client_mac_address)
+
         else:
             nack_msg = create_nack_message(MAC_ADDRESS, dhcp_message_xid)
             print("DHCP Server send NACK to client.(ip {})".format(requested_ip))
@@ -185,8 +199,6 @@ def wait_for_clients(server, socket_lock):
     while True:
         # receive request from client
         data_from_client, client_address = server.recvfrom(10000)
-        # dhcp_packet = dhcppython.packet.DHCPPacket.from_bytes(data_from_client)
-        # # print(dhcp_packet)
         handle_client(server, data_from_client, client_address, socket_lock)
         # if data_from_client:
         #     thread = threading.Thread(target=handle_client,
@@ -198,11 +210,6 @@ def wait_for_clients(server, socket_lock):
 # DHCP server must be multi thread
 def start_DHCP_server(server):
     extract_server_config()
-    print(IP_POOL)
-    print(MACADDRESS_IP_DICT)
-    print(BLACK_LIST_MACADDRESS)
-    print(RESERVATION_LIST_MAC_IP)
-    print(LEASE_TIME)
     # socket_lock = threading.Lock()
     socket_lock = 2
     wait_for_clients(server, socket_lock)
