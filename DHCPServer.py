@@ -69,6 +69,7 @@ def check_ip_pool_with_reservation_ip(reservation_list, ip_pool):
 def extract_server_config():
     config = read_from_config_file()
     pool_mode = config["pool_mode"]
+    ip_pool_arr = []
     if pool_mode == "range":
         from_ip = config["range"]["from"]
         to_ip = config["range"]["to"]
@@ -91,23 +92,27 @@ def extract_server_config():
 # create UDP socket for DHCP server
 def create_udp_socket():
     server = socket.socket(socket.AF_INET, socket.SOCK_DGRAM, socket.IPPROTO_UDP)  # UDP
-    # server.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+    server.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
     server.setsockopt(socket.SOL_SOCKET, socket.SO_BROADCAST, 1)  # enable broadcasting mode
     return server
 
 
 # select ip from pool and give offer to client
 def select_ip_from_pool():
+    print(IP_POOL)
     if len(IP_POOL) > 0:
         selected_ip = random.choice(IP_POOL)
         # x.pop(random.randrange(len(x)))
         return selected_ip
 
 
-def create_offer_message(mac_address, xid):
+def create_offer_message(mac_address, xid, client_mac_address):
     offer_ip = select_ip_from_pool()
+    if client_mac_address in MACADDRESS_IP_DICT:
+        offer_ip = MACADDRESS_IP_DICT[client_mac_address]
+
     print("DHCP Server get offer ip to client : ", offer_ip)
-    return dhcppython.packet.DHCPPacket.Offer(mac_address, seconds=0, tx_id=xid, yiaddr=ipaddress.IPv4Address(offer_ip))
+    return dhcppython.packet.DHCPPacket.Offer(mac_address, seconds=0, tx_id=xid, yiaddr=offer_ip)
 
 
 def create_ack_message(mac_address, xid, allocated_ip):
@@ -133,13 +138,11 @@ def check_client_ip_request(client_mac_address, requested_ip):
         MACADDRESS_IP_DICT[client_mac_address] = requested_ip
         return True
 
-    elif client_mac_address in MACADDRESS_IP_DICT:
-        pass
-
-    elif requested_ip not in IP_POOL and client_mac_address not in MACADDRESS_IP_DICT:
-        return False
-    else:
+    elif MACADDRESS_IP_DICT[client_mac_address] == requested_ip:
         return True
+
+    else:
+        return False
 
 
 def is_client_in_black_list(client_mac_address):
@@ -163,6 +166,13 @@ def timer_for_lease_time(client_mac_address):
     timer_countdown.start()
 
 
+# after get DHCP discovery, send DHCP offer
+def send_offer_message(server, xid, client_mac_address):
+    print("DHCP Server get discover message from client")
+    offer_msg = create_offer_message(MAC_ADDRESS, xid, client_mac_address)
+    server.sendto(offer_msg.asbytes, ('<broadcast>', 6668))
+
+
 def handle_client(server, data, client_address, socket_lock):
     dhcp_packet = dhcppython.packet.DHCPPacket.from_bytes(data)
     client_mac_address = dhcp_packet.chaddr
@@ -172,10 +182,10 @@ def handle_client(server, data, client_address, socket_lock):
 
     dhcp_message_type = dhcp_packet.options.as_dict()["dhcp_message_type"]
     dhcp_message_xid = dhcp_packet.xid
+
     if dhcp_message_type == "DHCPDISCOVER":
-        print("DHCP Server get discover message from client")
-        offer_msg = create_offer_message(MAC_ADDRESS, dhcp_message_xid)
-        server.sendto(offer_msg.asbytes, ('<broadcast>', 6668))
+        send_offer_message(server, dhcp_message_xid, client_mac_address)
+
 
     elif dhcp_message_type == "DHCPREQUEST":
         client_mac_address = dhcp_packet.chaddr
@@ -184,7 +194,8 @@ def handle_client(server, data, client_address, socket_lock):
         allocate_ip_flag = check_client_ip_request(dhcp_packet.chaddr, requested_ip)
         if allocate_ip_flag:
             ack_msg = create_ack_message(MAC_ADDRESS, dhcp_message_xid, requested_ip)
-            print("DHCP Server send ACK to client.(ip {})".format(requested_ip))
+            print("DHCP Server send ACK to client.(ip {})"
+                  "\n----------------------------------------------------------".format(requested_ip))
             server.sendto(ack_msg.asbytes, ('<broadcast>', 6668))
             timer_for_lease_time(client_mac_address)
 
