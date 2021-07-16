@@ -4,10 +4,13 @@ import dhcppython, ipaddress
 import json
 import time
 
+# global parameters
 MACADDRESS_IP_DICT = {}
 IP_POOL = []
+BLACK_LIST_MACADDRESS = []
+RESERVATION_LIST_MAC_IP = {}
+LEASE_TIME = 0
 MAC_ADDRESS = "de:a0:be:ef:c0:de"
-
 
 
 # read config.json
@@ -49,11 +52,20 @@ def create_ip_pool_subnet(ip_block, subnet_mask):
     start_end_host_id = subnet_to_ip_convertor[subnet_mask_parts[3]]
     for i in range(int(start_end_host_id["start"]), int(start_end_host_id["end"]) + 1):
         ip = ip_block_parts[0] + "." + ip_block_parts[1] + "." + ip_block_parts[2] + "." + str(i)
-        ip_pool_arr.append(ip)
+        ip_pool_arr.append(ipaddress.IPv4Address(ip))
 
     return ip_pool_arr
 
 
+# ip in reservation list, never should assign to another client
+def check_ip_pool_with_reservation_ip(reservation_list, ip_pool):
+    for mac, ip in reservation_list.items():
+        ip_address = ipaddress.IPv4Address(ip)
+        if ip_address in ip_pool:
+            ip_pool.remove(ip_address)
+
+
+# set DHCP server setting
 def extract_server_config():
     config = read_from_config_file()
     pool_mode = config["pool_mode"]
@@ -61,17 +73,19 @@ def extract_server_config():
         from_ip = config["range"]["from"]
         to_ip = config["range"]["to"]
         ip_pool_arr = create_ip_pool_range(from_ip, to_ip)
+
     elif pool_mode == "subnet":
         ip_block = config["subnet"]["ip_block"]
         subnet_mask = config["subnet"]["subnet_mask"]
         ip_pool_arr = create_ip_pool_subnet(ip_block, subnet_mask)
 
-    lease_time = config["lease_time"]
-    reservation_list = config["reservation_list"]
-    black_list = config["black_list"]
-    # TODO: check reservation_list and black_list in ip pool
+    global LEASE_TIME, BLACK_LIST_MACADDRESS, RESERVATION_LIST_MAC_IP, IP_POOL
+    LEASE_TIME = config["lease_time"]
+    RESERVATION_LIST_MAC_IP = config["reservation_list"]
+    BLACK_LIST_MACADDRESS = config["black_list"]
+    IP_POOL = ip_pool_arr
 
-    return ip_pool_arr, lease_time, reservation_list, black_list
+    check_ip_pool_with_reservation_ip(RESERVATION_LIST_MAC_IP, IP_POOL)
 
 
 # create UDP socket for DHCP server
@@ -98,9 +112,9 @@ def create_offer_message(mac_address, xid):
 
 def create_ack_message(mac_address, xid, allocated_ip):
     return dhcppython.packet.DHCPPacket(op="BOOTREPLY", htype="ETHERNET", hlen=6, hops=0, xid=xid, secs=0, flags=0,
-                                 ciaddr=ipaddress.IPv4Address(0), yiaddr=ipaddress.IPv4Address(allocated_ip),
-                                 siaddr=ipaddress.IPv4Address(0), giaddr=ipaddress.IPv4Address(0),
-                                 chaddr=mac_address, sname=b'', file=b'', options=dhcppython.options.OptionList(
+                                        ciaddr=ipaddress.IPv4Address(0), yiaddr=ipaddress.IPv4Address(allocated_ip),
+                                        siaddr=ipaddress.IPv4Address(0), giaddr=ipaddress.IPv4Address(0),
+                                        chaddr=mac_address, sname=b'', file=b'', options=dhcppython.options.OptionList(
             [dhcppython.options.options.short_value_to_object(53, "DHCPACK")]))
 
 
@@ -119,14 +133,31 @@ def check_client_ip_request(client_mac_address, requested_ip):
         MACADDRESS_IP_DICT[client_mac_address] = requested_ip
         return True
 
+    elif client_mac_address in MACADDRESS_IP_DICT:
+        pass
+
     elif requested_ip not in IP_POOL and client_mac_address not in MACADDRESS_IP_DICT:
         return False
     else:
         return True
 
 
+def is_client_in_black_list(client_mac_address):
+    print(client_mac_address)
+    print(BLACK_LIST_MACADDRESS)
+    if client_mac_address in BLACK_LIST_MACADDRESS:
+        return True
+
+    return False
+
+
 def handle_client(server, data, client_address, socket_lock):
     dhcp_packet = dhcppython.packet.DHCPPacket.from_bytes(data)
+    client_mac_address = dhcp_packet.chaddr
+    if is_client_in_black_list(client_mac_address):
+        print("DHCP Server: this client in blacklist!!!")
+        return
+
     dhcp_message_type = dhcp_packet.options.as_dict()["dhcp_message_type"]
     dhcp_message_xid = dhcp_packet.xid
     if dhcp_message_type == "DHCPDISCOVER":
@@ -166,9 +197,12 @@ def wait_for_clients(server, socket_lock):
 
 # DHCP server must be multi thread
 def start_DHCP_server(server):
-    ip_pool_arr, lease_time, reservation_list, black_list = extract_server_config()
-    global IP_POOL
-    IP_POOL = ip_pool_arr
+    extract_server_config()
+    print(IP_POOL)
+    print(MACADDRESS_IP_DICT)
+    print(BLACK_LIST_MACADDRESS)
+    print(RESERVATION_LIST_MAC_IP)
+    print(LEASE_TIME)
     # socket_lock = threading.Lock()
     socket_lock = 2
     wait_for_clients(server, socket_lock)
