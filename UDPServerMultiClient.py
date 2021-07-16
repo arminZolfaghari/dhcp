@@ -15,7 +15,7 @@ class UDPServerMultiClient():
 
         # handle request
         name = data.decode('utf-8')
-        resp = self.get_phone_no(name)
+        resp = self.function(name)
         self.printwt(f'[ REQUEST from {client_address} ]')
         print('\n', name, '\n')
 
@@ -25,8 +25,8 @@ class UDPServerMultiClient():
             self.sock.sendto(resp.encode('utf-8'), client_address)
         print('\n', resp, '\n')
 
+
     def wait_for_client(self):
-        ''' Wait for clients and handle their requests '''
 
         try:
             while True: # keep alive
@@ -46,7 +46,6 @@ class UDPServerMultiClient():
             self.shutdown_server()
 
 def main():
-    ''' Create a UDP Server and handle multiple clients simultaneously '''
 
     udp_server_multi_client = UDPServerMultiClient('127.0.0.1', 4444)
     udp_server_multi_client.configure_server()
