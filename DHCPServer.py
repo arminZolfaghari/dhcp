@@ -110,7 +110,6 @@ def select_ip_from_pool():
 def create_offer_message(mac_address, xid, client_mac_address):
     if client_mac_address in MACADDRESS_IP_DICT:
         offer_ip = MACADDRESS_IP_DICT[client_mac_address]
-        print(1111111111111111111111111111111111111111111111111111111111111)
     else:
         offer_ip = select_ip_from_pool()
 
@@ -144,7 +143,6 @@ def check_client_ip_request(client_mac_address, requested_ip):
 
     elif MACADDRESS_IP_DICT[client_mac_address] == requested_ip:
         update_client_information(client_mac_address, requested_ip)  # update in database
-        print("updateeeeeeeeeeeeeeee")
         return True
 
     else:
@@ -159,10 +157,13 @@ def is_client_in_black_list(client_mac_address):
 
 
 def return_ip_to_pool(client_mac_address):
-    returned_ip = MACADDRESS_IP_DICT[client_mac_address]
-    del MACADDRESS_IP_DICT[client_mac_address]
-    IP_POOL.append(returned_ip)
-    print("return this ip: {} from this client: {} to ip pool".format(returned_ip, client_mac_address))
+    print(client_mac_address)
+    print(MACADDRESS_IP_DICT)
+    if client_mac_address in MACADDRESS_IP_DICT:
+        returned_ip = MACADDRESS_IP_DICT[client_mac_address]
+        del MACADDRESS_IP_DICT[client_mac_address]
+        IP_POOL.append(returned_ip)
+        print("return this ip: {} from this client: {} to ip pool".format(returned_ip, client_mac_address))
     print("NEW IP POOL : ", IP_POOL)
 
 
@@ -244,7 +245,7 @@ def start_DHCP_server(server):
     #     dhcp_packet = dhcppython.packet.DHCPPacket.from_bytes(data_from_client)
     #     # print(dhcp_packet)
     #     if dhcp_packet.op == "BOOTREQUEST" and
-    #     thread = threading.Thread(target=handle_client, args=(data_from_client, address))
+    #     thread = threadin`g.Thread(target=handle_client, args=(data_from_client, address))
     #     thread.start()
 
 

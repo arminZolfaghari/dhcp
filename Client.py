@@ -1,7 +1,6 @@
 import random
 import socket
 import threading
-
 import dhcppython, ipaddress
 
 MAC_ADDRESS = "de:ad:be:ef:c0:de"
@@ -42,6 +41,7 @@ def client_have_ip():
         start_client()
     else:
         print("CLient have ip.")
+        exit()
 
 
 # this timer starts after send first discovery message
@@ -101,14 +101,16 @@ def start_client():
         while not TOOK_IP_FROM_DHCP:
 
             send_discovery_message(client_socket)
-            response_from_DHCP_server, address = client_socket.recvfrom(1024)
-            dhcp_packet = dhcppython.packet.DHCPPacket.from_bytes(response_from_DHCP_server)
-            dhcp_message_type = dhcp_packet.options.as_dict()["dhcp_message_type"]
-            if dhcp_message_type == "DHCPOFFER":
-                offer_ip = dhcp_packet.yiaddr
-                dhcp_message_xid = dhcp_packet.xid
-                print("Client get DHCP offer message from DHCP server, offer ip: {}".format(offer_ip))
-                send_request_message(MAC_ADDRESS, dhcp_message_xid, offer_ip)
+            while True:
+                response_from_DHCP_server, address = client_socket.recvfrom(1024)
+                dhcp_packet = dhcppython.packet.DHCPPacket.from_bytes(response_from_DHCP_server)
+                dhcp_message_type = dhcp_packet.options.as_dict()["dhcp_message_type"]
+                if dhcp_message_type == "DHCPOFFER":
+                    offer_ip = dhcp_packet.yiaddr
+                    dhcp_message_xid = dhcp_packet.xid
+                    print("Client get DHCP offer message from DHCP server, offer ip: {}".format(offer_ip))
+                    send_request_message(MAC_ADDRESS, dhcp_message_xid, offer_ip)
+                    break
 
             while True:
                 response_from_DHCP_server, address = client_socket.recvfrom(1024)
@@ -127,12 +129,13 @@ def start_client():
                     break
 
 
+global number_of_try, last_duration
+number_of_try = 1
+last_duration = INITIAL_INTERVAL
+
 if __name__ == "__main__":
     global client_socket
     client_socket = create_udp_socket()
     client_socket.bind(('', 6668))  # 30068 for client port
 
-    global number_of_try, last_duration
-    number_of_try = 1
-    last_duration = INITIAL_INTERVAL
     start_client()
