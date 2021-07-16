@@ -3,6 +3,7 @@ import socket, threading, subprocess
 import dhcppython, ipaddress
 import json
 import time
+from Database import *
 
 # global parameters
 MACADDRESS_IP_DICT = {}
@@ -107,9 +108,11 @@ def select_ip_from_pool():
 
 
 def create_offer_message(mac_address, xid, client_mac_address):
-    offer_ip = select_ip_from_pool()
     if client_mac_address in MACADDRESS_IP_DICT:
         offer_ip = MACADDRESS_IP_DICT[client_mac_address]
+        print(1111111111111111111111111111111111111111111111111111111111111)
+    else:
+        offer_ip = select_ip_from_pool()
 
     print("DHCP Server get offer ip to client : ", offer_ip)
     return dhcppython.packet.DHCPPacket.Offer(mac_address, seconds=0, tx_id=xid, yiaddr=offer_ip)
@@ -128,17 +131,20 @@ def create_nack_message(mac_address, xid):
                                         ciaddr=ipaddress.IPv4Address(0), yiaddr=ipaddress.IPv4Address(0),
                                         siaddr=ipaddress.IPv4Address(0), giaddr=ipaddress.IPv4Address(0),
                                         chaddr=mac_address, sname=b'', file=b'', options=dhcppython.options.OptionList(
-            [dhcppython.options.options.short_value_to_object(53, "DHCPNACK")]))
+            [dhcppython.options.options.short_value_to_object(53, "DHCPNAK")]))
 
 
 def check_client_ip_request(client_mac_address, requested_ip):
     global IP_POOL, MACADDRESS_IP_DICT
-    if requested_ip in IP_POOL:
+    if requested_ip in IP_POOL and client_mac_address not in MACADDRESS_IP_DICT:
         IP_POOL.remove(requested_ip)
         MACADDRESS_IP_DICT[client_mac_address] = requested_ip
+        add_client_information(client_mac_address, requested_ip)  # add in database
         return True
 
     elif MACADDRESS_IP_DICT[client_mac_address] == requested_ip:
+        update_client_information(client_mac_address, requested_ip)  # update in database
+        print("updateeeeeeeeeeeeeeee")
         return True
 
     else:
@@ -173,6 +179,12 @@ def send_offer_message(server, xid, client_mac_address):
     server.sendto(offer_msg.asbytes, ('<broadcast>', 6668))
 
 
+# show client info: mac_address, IP, allocated time, (expire time: lease time - (now time - allocated time))
+def show_clients():
+    client_info = read_from_database()
+    print(client_info)
+
+
 def handle_client(server, data, client_address, socket_lock):
     dhcp_packet = dhcppython.packet.DHCPPacket.from_bytes(data)
     client_mac_address = dhcp_packet.chaddr
@@ -197,6 +209,7 @@ def handle_client(server, data, client_address, socket_lock):
             print("DHCP Server send ACK to client.(ip {})"
                   "\n----------------------------------------------------------".format(requested_ip))
             server.sendto(ack_msg.asbytes, ('<broadcast>', 6668))
+
             timer_for_lease_time(client_mac_address)
 
         else:
